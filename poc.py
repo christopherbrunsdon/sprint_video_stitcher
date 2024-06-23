@@ -58,7 +58,7 @@ class VideoData:
             config_dict = yaml.safe_load(ymlfile)
             self.sprint = config_dict.get('Sprint')
             self.project = config_dict.get('Project')
-            self.videos = [video for video in config_dict.get('Videos') if not video.get('_skip')]
+            self.videos = [video for video in config_dict.get('Videos') if not video.get('skip')]
 
         self.opening_videos = [video for video in self.videos if video.get('type') == 'opening']
         self.closing_videos = [video for video in self.videos if video.get('type') == 'closing']
@@ -360,8 +360,9 @@ class VideoData:
             .fx(vfx.fadeout, 1.0)
             .fx(vfx.fadein, 1.0)  # for smooth fadeout
         )
+
         if result:
-            result.preview()
+            result.show()
 
         result = (
             result
@@ -392,17 +393,12 @@ class VideoData:
         print(f"Preparing opening clips:")
 
         opening_clips = [
-            self.composite_video_clip(
-                [
-                    (
-                        self.prepare_clip(video).fx(vfx.fadeout, self.toc_fade_time)
-                        if video.get("show toc", False)
-                        else self.prepare_clip(video)
-                    ),
-                    self.table_of_contents_clip() if video.get("show toc", False) else None,
-                ]
-            ) for video in self.opening_videos
+            self.prepare_clip_with_toc(video) for video in self.opening_videos
         ]
+
+        # Debug
+        self.clips = opening_clips
+        return
 
         # Prepare clips for videos where type is not None
         print(f"Preparing middle clips:")
@@ -415,13 +411,34 @@ class VideoData:
         # Combine opening, middle and closing clips in order
         self.clips = opening_clips + middle_clips + closing_clips
 
+    def prepare_clip_with_toc(self, video):
+        clip = self.prepare_clip(video)
+        toc_clip = None
+        if video.get("show toc", False):
+
+            black_clip_length = self.toc_fade_time - 1
+            clip_length = clip.duration - self.toc_fade_time
+
+            # Shorten the video length by self.toc_fade_time seconds, then append a self.toc_fade_time -1 second
+            # black screen
+            audio = clip.audio # Strip out audio
+            clip = clip.subclip(0, clip_length)
+            clip = concatenate_videoclips([
+                clip.fx(vfx.fadeout, 1).set_audio(audio),
+                ColorClip((clip.size), col=(0, 0, 0), duration=black_clip_length) # .set_audio(audio)
+            ])
+            clip = clip.set_audio(audio) # Restore audio
+
+            toc_clip = self.table_of_contents_clip(clip_duration=self.toc_fade_time).set_start(clip_length)
+
+        return self.composite_video_clip([clip, toc_clip, ])
+
     def stitch(self):
         """
         Stitch all the clips into final video
         :return:
         """
         self.prepare_clips()
-        # return
         final_clip = concatenate_videoclips(self.clips)
         output_file_path = os.path.join(self.dir, self.output_file)
         final_clip.write_videofile(output_file_path, codec='libx264', audio_codec='aac')
