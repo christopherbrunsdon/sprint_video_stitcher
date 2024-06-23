@@ -1,10 +1,16 @@
 import argparse
 import subprocess
 import time
-
+import youtube_dl
+import re
 import numpy as np
 import yaml
 from moviepy.editor import *
+
+
+def my_hook(self, d):
+    if d['status'] == 'finished':
+        print('Download completed, now converting...')
 
 
 class VideoData:
@@ -118,6 +124,19 @@ class VideoData:
             file_path = self.get_file_path(video)
             ts_file_path = self.get_ts_file_path(video)
 
+            # Check if the video is a YouTube URL and we have not downloaded it yet
+            youtube_url = video.get('youtube-url')
+            if youtube_url and not os.path.isfile(file_path):
+                # The video is a URL, use youtube_dl and then save using the video.video name
+                ydl_opts = {
+                    'outtmpl': file_path,
+                    'nocheckcertificate': True,
+                    'verbose': True
+                }
+                with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([youtube_url])
+
+
             if os.path.isfile(file_path):
                 if not os.path.isfile(ts_file_path):
                     self.convert_to_ts(file_path, ts_file_path)
@@ -188,8 +207,6 @@ class VideoData:
             clip = CompositeVideoClip([clip, txt_clip])
 
         return clip
-
-
 
     def video_text_overlay_clip(self, video, clip_duration, description_duration=3, margin=5):
 
