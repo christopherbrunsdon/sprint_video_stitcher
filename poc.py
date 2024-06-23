@@ -147,7 +147,7 @@ class VideoData:
         file_path = self.get_ts_file_path(video)
         clip = VideoFileClip(file_path)
 
-        if self.subclip_duration:
+        if self.subclip_duration and self.subclip_duration < clip.duration:
             print(f"  - Clip Duration: {self.subclip_duration} seconds")
             clip = clip.subclip(0, self.subclip_duration)
 
@@ -164,9 +164,12 @@ class VideoData:
     def video_text_overlay_clip(self, video, clip_duration, description_duration=3, margin=5):
 
         ticket_clip, ticket_width = self.render_ticket_clip(clip_duration, margin, video)
-        duration_clip, duration_width = self.render_duration_clip(clip_duration, description_duration, margin, video)
+        # duration_clip, duration_width = self.render_duration_clip(clip_duration, description_duration, margin, video)
+        duration_clip, duration_width = self.render_remaining_duration_clip(video=video, duration=clip_duration,
+                                                                            margin=margin)
         txt_clip = self.render_description_clip(description_duration, margin, ticket_width, duration_width, video)
-        timelapse_clip = self.render_timelapse_clip(video, clip_duration)
+
+        timelapse_clip = None  # self.render_timelapse_clip(video, clip_duration)
 
         # Process and return
         clips = [ticket_clip, txt_clip, duration_clip, timelapse_clip, ]
@@ -195,6 +198,35 @@ class VideoData:
             txt.close()
         return duration_clip, duration_width
 
+    def render_remaining_duration_clip(self, video, duration, margin, time_step=1):
+        # Display duration of clip
+        duration_width = 0
+        timelapse_bar = None
+        if video.get('show duration', True):
+            txt_clips = []
+            for i in range(int(duration), 0, -time_step):
+                minutes, secs = divmod(i, 60)
+                time_format = "{:02d}:{:02d}".format(minutes, secs, duration // 60, duration % 60)
+
+                txt = (TextClip(time_format, font="Amiri-Bold", fontsize=self.txt_ticket_fontsize,
+                                color='white').set_duration(time_step)
+                       # .fx(vfx.fadeout, self.fadeout) # Enable the fadeout/in if you want a cool "flash" effect
+                       )
+                txt = (
+                    txt.on_color(size=(txt.w + 6, txt.h + 6),
+                                 color=(255, 0, 0))
+                    .margin(1)
+                    .margin(bottom=margin, left=margin, right=margin, opacity=0.0)
+                )
+                txt_clips.append(txt)
+                txt.close()
+
+            timelapse_bar = concatenate_videoclips(txt_clips, method="compose")
+            timelapse_bar = timelapse_bar.set_duration(duration).set_position(('right', 'bottom'))
+            duration_width = timelapse_bar.w - margin
+
+        return timelapse_bar, duration_width
+
     def render_description_clip(self, description_duration, margin, left_offset, right_offset, video):
         # Display description
         txt_clip = None
@@ -221,7 +253,6 @@ class VideoData:
                 .margin(bottom=margin, left=left_offset, opacity=0.0)
                 .set_pos(('left', 'bottom'))
             )
-
             # keep these two the same
             fadein = self.fadein
             txt_clip = txt_clip.set_duration(description_duration).fx(vfx.fadein, fadein)
@@ -264,6 +295,7 @@ class VideoData:
                 txt = TextClip(time_format, fontsize=self.txt_ticket_fontsize, color='white')
                 txt = txt.set_duration(1).set_pos(('right', 'bottom'))
                 txt_clips.append(txt)
+
             timelapse_bar = concatenate_videoclips(txt_clips, method="compose")
             timelapse_bar.set_duration(duration)
             timelapse_bar = timelapse_bar.fx(vfx.fadeout, 1.0)  # for smooth fadeout
@@ -389,45 +421,33 @@ class VideoData:
         print(f"Preparing clips for {self.project}")
 
         # Prepare the opening clips
-        # TODO:
         print(f"Preparing opening clips:")
-
-        opening_clips = [
-            self.prepare_clip_with_toc(video) for video in self.opening_videos
-        ]
-
-        # Debug
-        self.clips = opening_clips
-        return
+        self.clips = [self.prepare_clip_with_toc(video) for video in self.opening_videos]
 
         # Prepare clips for videos where type is not None
         print(f"Preparing middle clips:")
-        middle_clips = [self.prepare_clip(video) for video in self.videos if video.get('type') is None]
+        self.clips.extend([self.prepare_clip(video) for video in self.videos if video.get('type') is None])
 
         # Prepare the closing clips
         print(f"Preparing closing clips:")
-        closing_clips = [self.prepare_clip(video) for video in self.closing_videos]
-
-        # Combine opening, middle and closing clips in order
-        self.clips = opening_clips + middle_clips + closing_clips
+        self.clips.extend([self.prepare_clip(video) for video in self.closing_videos])
 
     def prepare_clip_with_toc(self, video):
         clip = self.prepare_clip(video)
         toc_clip = None
         if video.get("show toc", False):
-
             black_clip_length = self.toc_fade_time - 1
             clip_length = clip.duration - self.toc_fade_time
 
             # Shorten the video length by self.toc_fade_time seconds, then append a self.toc_fade_time -1 second
             # black screen
-            audio = clip.audio # Strip out audio
+            audio = clip.audio  # Strip out audio
             clip = clip.subclip(0, clip_length)
             clip = concatenate_videoclips([
                 clip.fx(vfx.fadeout, 1).set_audio(audio),
-                ColorClip((clip.size), col=(0, 0, 0), duration=black_clip_length) # .set_audio(audio)
+                ColorClip((clip.size), col=(0, 0, 0), duration=black_clip_length)  # .set_audio(audio)
             ])
-            clip = clip.set_audio(audio) # Restore audio
+            clip = clip.set_audio(audio)  # Restore audio
 
             toc_clip = self.table_of_contents_clip(clip_duration=self.toc_fade_time).set_start(clip_length)
 
