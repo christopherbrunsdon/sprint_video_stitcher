@@ -1,5 +1,6 @@
 import argparse
 import subprocess
+import time
 
 import yaml
 from moviepy.editor import *
@@ -28,6 +29,7 @@ class VideoData:
         self.fadein = 1
         self.fadeout = 1
         self.txt_ticket_fontsize = 22
+        self.toc_fade_time = 5.0
 
     def run(self):
         self.prepare()
@@ -159,61 +161,55 @@ class VideoData:
 
         return clip
 
-    def video_text_overlay_clip(self, video, clip_duration, description_duration=3):
-        txt_clip = None
-        ticket_clip = None
-        duration_clip = None
-        timelapse_clip = None
-        margin = 5
-        ticket_width = margin
-        duration_width = margin
+    def video_text_overlay_clip(self, video, clip_duration, description_duration=3, margin=5):
 
-        # Display ticket
-        ticket = video.get('ticket', None)
-        if ticket is not None:
-            txt = TextClip(ticket, font="Amiri-Bold", fontsize=self.txt_ticket_fontsize, color="red")
-            ticket_clip = (
+        ticket_clip, ticket_width = self.render_ticket_clip(clip_duration, margin, video)
+        duration_clip, duration_width = self.render_duration_clip(clip_duration, description_duration, margin, video)
+        txt_clip = self.render_description_clip(description_duration, margin, ticket_width, duration_width, video)
+        timelapse_clip = self.render_timelapse_clip(video, clip_duration)
+
+        # Process and return
+        clips = [ticket_clip, txt_clip, duration_clip, timelapse_clip, ]
+        result = self.composite_video_clip(clips)
+        if result:
+            result.show()
+        return result
+
+    def render_duration_clip(self, clip_duration, description_duration, margin, video):
+        # Display duration of clip
+        duration_width = 0
+        duration_clip = None
+        if video.get('show duration', True):
+            txt = TextClip(f"{int(clip_duration)} sec", font="Amiri-Bold", fontsize=self.txt_ticket_fontsize,
+                           color='blue').set_duration(
+                description_duration).fx(vfx.fadeout, self.fadeout)
+            duration_clip = (
                 txt.on_color(size=(txt.w + 6, txt.h + 6),
                              color=3 * [255])
                 .margin(1)
-                .margin(bottom=margin, left=margin, opacity=0.0)
-                .set_pos(('left', 'bottom'))
+                .margin(bottom=margin, left=margin, right=margin, opacity=0.0)
+                .set_pos(('right', 'bottom'))
             )
-            ticket_width = ticket_clip.w
-            ticket_clip = ticket_clip.set_duration(clip_duration).fx(vfx.fadeout, self.fadeout)
+            duration_width = duration_clip.w - margin
+            duration_clip = duration_clip.set_duration(description_duration).fx(vfx.fadein, self.fadein)
             txt.close()
+        return duration_clip, duration_width
 
-        # Display duration of clip
-        if video.get('show duration', True):
-            # txt = TextClip(f"{int(clip_duration)} sec", font="Amiri-Bold", fontsize=self.txt_ticket_fontsize,
-            #                color='blue').set_duration(
-            #     description_duration).fx(vfx.fadeout, self.fadeout)
-            # duration_clip = (
-            #     txt.on_color(size=(txt.w + 6, txt.h + 6),
-            #                  color=3 * [255])
-            #     .margin(1)
-            #     .margin(bottom=margin, left=margin, right=margin, opacity=0.0)
-            #     .set_pos(('right', 'bottom'))
-            # )
-            # duration_width = duration_clip.w - margin
-            # duration_clip = duration_clip.set_duration(description_duration).fx(vfx.fadein, self.fadein)
-            # txt.close()
-
-            timelapse_clip = self.render_timelapse_clip(clip_duration)
-
+    def render_description_clip(self, description_duration, margin, left_offset, right_offset, video):
         # Display description
+        txt_clip = None
         description = video.get('description')
         if description is not None:
             # calculate width to fill between ticket and duration to create a solid bar
             width, _ = self.size
-            width = width - ticket_width - margin  # - duration_width
+            width = width - left_offset - margin - right_offset
 
             txt = TextClip(description, font="Amiri-Bold", fontsize=self.txt_ticket_fontsize, color='black')
             txt_clip = (
                 txt.on_color(size=(max(1 - width, txt.w + 6), txt.h + 6),
                              color=3 * [255])
                 .margin(0)
-                .margin(bottom=margin + 1, left=ticket_width, opacity=0.0)
+                .margin(bottom=margin + 1, left=left_offset, opacity=0.0)
                 .set_pos(('left', 'bottom'))
             )
             # Full width hack
@@ -222,7 +218,7 @@ class VideoData:
                 .on_color(size=(width, txt.h + 6),
                           color=3 * [255])
                 .margin(1)
-                .margin(bottom=margin, left=ticket_width, opacity=0.0)
+                .margin(bottom=margin, left=left_offset, opacity=0.0)
                 .set_pos(('left', 'bottom'))
             )
 
@@ -234,61 +230,145 @@ class VideoData:
             # Render into single clip
             txt_clip = self.composite_video_clip([bg_clip, txt_clip, ])
             txt.close()
+        return txt_clip
 
-        # Process and return
-        clips = [ticket_clip, txt_clip, timelapse_clip, ]
-        result = self.composite_video_clip(clips)
-        if result:
-            result.show()
-        return result
+    def render_ticket_clip(self, clip_duration, margin, video, pos_y='bottom', margin_top=0):
+        # Display ticket
+        ticket_clip = None
+        ticket_width = margin
 
-    def render_timelapse_clip(self, duration):
-        txt_clips = []
-        for i in range(0, int(duration)):
-            mins, secs = divmod(i, 60)
-            # format as MM:SS
-            time_format = "{:02d}:{:02d}/{:02d}:{:02d}".format(mins, secs, duration // 60, duration % 60)
-            txt = TextClip(time_format, fontsize=self.txt_ticket_fontsize, color='white')
-            txt = txt.set_duration(1).set_pos(('right', 'bottom'))
-            txt_clips.append(txt)
-        timelapse_bar = concatenate_videoclips(txt_clips, method="compose")
-        timelapse_bar.set_duration(duration)
-        timelapse_bar = timelapse_bar.fx(vfx.fadeout, 1.0)  # for smooth fadeout
-        return timelapse_bar.set_position(("right", "bottom"))
+        ticket = video.get('ticket', None)
+        if ticket is not None:
+            txt = TextClip(ticket, font="Amiri-Bold", fontsize=self.txt_ticket_fontsize, color="red")
+            ticket_clip = (
+                txt.on_color(size=(txt.w + 6, txt.h + 6),
+                             color=3 * [255])
+                .margin(1)
+                .margin(top=margin_top, bottom=margin, left=margin, opacity=0.0)
+                .set_pos(('left', pos_y))
+            )
+            ticket_width = ticket_clip.w
+            ticket_clip = ticket_clip.set_duration(clip_duration).fx(vfx.fadeout, self.fadeout)
+            txt.close()
+        return ticket_clip, ticket_width
 
-    def table_of_contents_clip(self, duration=5):
+    def render_timelapse_clip(self, video, duration):
+        duration = int(round(duration))
+        timelapse_bar = None
+        if video.get('show duration', True):
+            txt_clips = []
+            for i in range(0, int(duration)):
+                minutes, secs = divmod(i, 60)
+                # format as MM:SS
+                time_format = "{:02d}:{:02d}/{:02d}:{:02d}".format(minutes, secs, duration // 60, duration % 60)
+                txt = TextClip(time_format, fontsize=self.txt_ticket_fontsize, color='white')
+                txt = txt.set_duration(1).set_pos(('right', 'bottom'))
+                txt_clips.append(txt)
+            timelapse_bar = concatenate_videoclips(txt_clips, method="compose")
+            timelapse_bar.set_duration(duration)
+            timelapse_bar = timelapse_bar.fx(vfx.fadeout, 1.0)  # for smooth fadeout
+            timelapse_bar.set_position(("right", "bottom"))
+        return timelapse_bar
+
+    def str_duration(self, clip):
+        duration = clip.duration
+        return f"{int(duration)} sec"
+
+    def table_of_contents_clip(self, clip_duration=5, margin=5):
         """
         Render a table of contents clip of list of videos
 
-        @todo: this will always render in the center. Need to do this line by line.
-
         :return:
         """
-        toc = ["Videos:"]
+        clips = []
+        clips_middle = []
+        toc = ["Videos:"]  # For debugging
         counter = 1
+        offset_y = margin
+        offset_x_middle = 0
+
+        # Add Title and Header Line
+        title = TextClip("List of demo videos", fontsize=self.txt_ticket_fontsize * 2,
+                         color="orange").set_position(('center', offset_y))
+        offset_y = (title.h * 2) + margin
+
+        header = [
+            TextClip("Ticket", fontsize=self.txt_ticket_fontsize,
+                     color="orange").set_position(('left', offset_y)).margin(margin),
+            TextClip("Description", fontsize=self.txt_ticket_fontsize,
+                     color="orange").set_position(('center', offset_y)).margin(margin),
+            TextClip("Length", fontsize=self.txt_ticket_fontsize,
+                     color="orange").set_position(('right', offset_y)).margin(margin),
+        ]
+        offset_y += (header[0].h * 2) + margin
+
+        clips.append(title)
+        clips.extend(header)
+
+        # Add TOC lines
         for video in self.videos:
             if video.get('type', 'video') == 'video':
-                toc.append(f"{counter}. - {video.get('ticket')} - {video.get('description')}")
+                txt_ticket = (
+                    TextClip(video.get("ticket", "-"), fontsize=self.txt_ticket_fontsize,
+                             color="yellow")
+                    .set_position(('left', offset_y))
+                    .margin(left=margin, right=margin, )
+                )
+
+                txt_duration = (
+                    TextClip(self.str_duration(self.video_clip(video)), fontsize=self.txt_ticket_fontsize,
+                             color="yellow")
+                    .margin(left=margin, right=margin, )
+                    .set_position(('right', offset_y))
+                )
+
+                txt_description = (
+                    TextClip(video.get("description", "-"), fontsize=self.txt_ticket_fontsize,
+                             color="white")
+                    .margin(left=margin, right=margin, )
+                )
+
+                font_height = max(txt_ticket.h, txt_duration.h, txt_description.h)
+                # we want to offset the "middle" clip using the widest ticket colum.
+                offset_x_middle = max(offset_x_middle, txt_ticket.w)
+
+                clips.extend([txt_ticket, txt_duration])
+                clips_middle.append({
+                    "clip": txt_description,
+                    "pos_y": offset_y,
+                })
+
+                # next
+                offset_y += (font_height * 2) + margin
                 counter += 1
 
+        # we want to offset the "middle" clip using the widest ticket colum.
+        for clip_dict in clips_middle:
+            actual_clip = clip_dict["clip"]
+            pos_y = clip_dict["pos_y"]
+
+            actual_clip = actual_clip.set_pos((offset_x_middle, pos_y))
+            clips.append(actual_clip)
+
+        # Debug to CLI
         toc_text = "\n".join(toc)
         print(f"Table of Contents:\n{toc_text}")
 
-        toc_clip = TextClip(toc_text, fontsize=self.txt_ticket_fontsize, color='blue')
-        toc_clip = (
-            toc_clip.on_color(size=(toc_clip.w + 6, toc_clip.h + 6),
-                         color=3 * [255])
-            .margin(1)
-            # .margin(bottom=margin, left=margin, opacity=0.0)
-            .set_pos(('left', 'bottom'))
+        result = (
+            self.composite_video_clip(clips)
+            .set_duration(clip_duration)
+            .fx(vfx.fadeout, 1.0)
+            .fx(vfx.fadein, 1.0)  # for smooth fadeout
         )
-        toc_clip = toc_clip.set_position(('left','center')).set_duration(duration)
+        if result:
+            result.preview()
 
-
-        # toc_clip = toc_clip.fx(vfx.fadeout, 1.0).fx(vfx.fadein, 1.0)  # for smooth fadeout
-        toc_clip.show()
-        return toc_clip
-
+        result = (
+            result
+            .fx(vfx.fadeout, 1.0)
+            .fx(vfx.fadein, 1.0)  # for smooth fadeout
+        )
+        return result
 
     def prepare_clip(self, video):
         print(f"- Prepared '{video.get('type', 'demo')}' clip for '{video['video']}'")
@@ -308,16 +388,21 @@ class VideoData:
         print(f"Preparing clips for {self.project}")
 
         # Prepare the opening clips
+        # TODO:
         print(f"Preparing opening clips:")
+
         opening_clips = [
             self.composite_video_clip(
                 [
-                    self.prepare_clip(video).fx(vfx.fadeout, 5.0),
-                    self.table_of_contents_clip(),
+                    (
+                        self.prepare_clip(video).fx(vfx.fadeout, self.toc_fade_time)
+                        if video.get("show toc", False)
+                        else self.prepare_clip(video)
+                    ),
+                    self.table_of_contents_clip() if video.get("show toc", False) else None,
                 ]
             ) for video in self.opening_videos
         ]
-        # toc_clips = [self.table_of_contents_clip()]
 
         # Prepare clips for videos where type is not None
         print(f"Preparing middle clips:")
@@ -328,7 +413,7 @@ class VideoData:
         closing_clips = [self.prepare_clip(video) for video in self.closing_videos]
 
         # Combine opening, middle and closing clips in order
-        self.clips = opening_clips  #+ middle_clips + closing_clips
+        self.clips = opening_clips + middle_clips + closing_clips
 
     def stitch(self):
         """
@@ -336,7 +421,6 @@ class VideoData:
         :return:
         """
         self.prepare_clips()
-        # time.sleep(1)
         # return
         final_clip = concatenate_videoclips(self.clips)
         output_file_path = os.path.join(self.dir, self.output_file)
@@ -359,7 +443,7 @@ if __name__ == '__main__':
     parser.add_argument('-preview', metavar='preview', type=int, nargs='?',
                         help='Create preview clip in seconds of each video before stitching')
     parser.add_argument('-config', metavar='config', type=str, default="config.yml",
-                        help='the yaml data config file for your videos')
+                        help='the yaml data config file for your videos in your working directory')
     args = parser.parse_args()
     print(f"Stitching Sprint Video from directory: {args.dir}")
 

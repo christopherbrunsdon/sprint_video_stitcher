@@ -1,0 +1,20 @@
+Sprint: My Sprint Name
+Project: My Project
+Videos:
+  - video: TICKET-329-demo.mp4
+    ticket: TICKET-329
+    description: I added a cool feature.
+  - video: TICKET-107-demp.mp4
+    ticket: TICKET-107
+    description: This is a another cool feature.
+    skip: False
+  - video: TICKET-107-demo.mp4
+    ticket: TICKET-107
+    description: Adding that cool feature I just thought off.
+    skip: True
+  - video: Start.mp4
+    type: opening
+    show duration: False
+  - video: End.mp4
+    type: closing
+    show duration: False
