@@ -2,6 +2,7 @@ import argparse
 import subprocess
 import time
 
+import numpy as np
 import yaml
 from moviepy.editor import *
 
@@ -159,7 +160,36 @@ class VideoData:
             print(f"  - Fadeout: {self.fadeout} seconds")
             clip = clip.fx(vfx.fadeout, self.fadeout)
 
+        background_color = video.get('background', False)
+        if background_color:
+            # Ensure that the background color is not a string and it has only 3 elements
+            assert isinstance(background_color, (list, tuple)) and len(background_color) == 3
+            background_color = tuple(map(int, background_color))  # Convert to a tuple of integers
+
+            print(f"  - Rendering a {background_color} bg video with audio")
+            audio_clip = clip.audio
+            bg_clip = (ColorClip(clip.size, col=background_color)
+                       .set_duration(clip.duration)
+                       .set_audio(audio_clip)
+                       .set_mask(None)
+                       .set_ismask(False))
+            clip = bg_clip
+
+        if video.get('title', False):
+            color = video.get('color', 'white')
+
+            # Create a TextClip
+            txt_clip = TextClip(video.get('title'), fontsize=50, color=color)
+
+            # Center it on the screen
+            txt_clip = txt_clip.set_position('center').set_duration(clip.duration)
+
+            # Composite the TextClip and the original clip
+            clip = CompositeVideoClip([clip, txt_clip])
+
         return clip
+
+
 
     def video_text_overlay_clip(self, video, clip_duration, description_duration=3, margin=5):
 
@@ -339,7 +369,7 @@ class VideoData:
 
         # Add TOC lines
         for video in self.videos:
-            if video.get('type', 'video') == 'video':
+            if video.get('type', 'video') == 'video' and video.get('show on toc', True):
                 txt_ticket = (
                     TextClip(video.get("ticket", "-"), fontsize=self.txt_ticket_fontsize,
                              color="yellow")
