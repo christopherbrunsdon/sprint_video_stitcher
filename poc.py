@@ -14,7 +14,7 @@ def my_hook(self, d):
 
 
 class VideoData:
-    def __init__(self, dir, config, subclip_duration=None, output_file="output.mp4"):
+    def __init__(self, dir, config, subclip_duration=None, output_file=None):
         self.clips = None
         self.videos = None
         self.closing_videos = None
@@ -66,6 +66,12 @@ class VideoData:
             self.sprint = config_dict.get('Sprint')
             self.project = config_dict.get('Project')
             self.videos = [video for video in config_dict.get('Videos') if not video.get('skip')]
+
+            if self.output_file is None:
+                output = f"{config_dict.get('Author', '')}-sprint-demo-{config_dict.get('Sprint', 'stitched output')}"
+                output = output.strip().strip('-').lower()  # Get the value, trim and lower case
+                output = output.replace(' ', '-')  # Replace whitespaces with dash
+                self.output_file = output + '.mp4'  # Append '.mp4'
 
         self.opening_videos = [video for video in self.videos if video.get('type') == 'opening']
         self.closing_videos = [video for video in self.videos if video.get('type') == 'closing']
