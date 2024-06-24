@@ -506,9 +506,35 @@ class VideoData:
         :return:
         """
         self.prepare_clips()
-        final_clip = concatenate_videoclips(self.clips)
+        final_clip = self.concatenate_with_chapters()
         output_file_path = os.path.join(self.dir, self.output_file)
         final_clip.write_videofile(output_file_path, codec='libx264', audio_codec='aac')
+
+    def concatenate_with_chapters(self):
+        start_times = []  # To track start times for each clip
+        total_duration = 0  # To track total duration up to current clip
+        final_clip = None  # The final output clip
+
+        for clip in self.clips:
+            # Append the start time of current clip
+            start_times.append(total_duration)
+            # Increase total_duration with current clip duration
+            total_duration += clip.duration
+            # Concatenate the current clip to final clip
+            if final_clip is None:
+                final_clip = clip
+            else:
+                final_clip = concatenate_videoclips([final_clip, clip])
+
+        print(f"Total duration: {total_duration}")
+        print(f"Total clips: {len(final_clip.clips)}")
+
+        # Print the starting times for each clip
+        print("Starting times for each clip in the final video (in seconds):")
+        for i, start_time in enumerate(start_times):
+            print(f"Chapter {i + 1}: {start_time} sec")
+
+        return final_clip
 
     def get_file_path(self, video):
         return os.path.join(self.dir, video['video'])
