@@ -1,4 +1,5 @@
 import argparse
+import shutil
 import subprocess
 import time
 import youtube_dl
@@ -6,7 +7,12 @@ import re
 import numpy as np
 import yaml
 from moviepy.editor import *
+from pytube import YouTube
+import ssl
 
+# Ignore SSL
+# Resolves: urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)>
+ssl._create_default_https_context = ssl._create_unverified_context
 
 def my_hook(self, d):
     if d['status'] == 'finished':
@@ -133,14 +139,23 @@ class VideoData:
             # Check if the video is a YouTube URL and we have not downloaded it yet
             youtube_url = video.get('youtube-url')
             if youtube_url and not os.path.isfile(file_path):
-                # The video is a URL, use youtube_dl and then save using the video.video name
-                ydl_opts = {
-                    'outtmpl': file_path,
-                    'nocheckcertificate': True,
-                    'verbose': True
-                }
-                with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([youtube_url])
+                download_path = f"{file_path}-youtube-download"
+                yt = YouTube(youtube_url)
+
+                # Get all streams and filter for mp4 files and progressive streams
+                progressive_streams = yt.streams.filter(file_extension='mp4', progressive=True)
+
+                # Get the video with the highest resolution
+                d_video = progressive_streams.get_highest_resolution()
+
+                # Download the video to the directory of file_path
+                filename = d_video.download(output_path=download_path)
+
+                # Rename the file
+                os.rename(os.path.join(download_path, filename), file_path)
+
+                # Drop download folder
+                shutil.rmtree(download_path)
 
 
             if os.path.isfile(file_path):
