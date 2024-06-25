@@ -1,18 +1,22 @@
 import argparse
 import shutil
+import ssl
 import subprocess
-import time
-import youtube_dl
-import re
+from urllib.parse import urlparse
+
 import numpy as np
+import requests
 import yaml
+
 from moviepy.editor import *
 from pytube import YouTube
-import ssl
+from PIL import Image
+import io
 
 # Ignore SSL
 # Resolves: urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)>
 ssl._create_default_https_context = ssl._create_unverified_context
+
 
 def my_hook(self, d):
     if d['status'] == 'finished':
@@ -32,6 +36,7 @@ class VideoData:
         self.subclip_duration = subclip_duration
         self.output_file = output_file
         self.size = None
+        self.watermark = None
 
         self.load_config(config)
         valid, msg = self.verify_config()
@@ -71,6 +76,7 @@ class VideoData:
             config_dict = yaml.safe_load(ymlfile)
             self.sprint = config_dict.get('Sprint')
             self.project = config_dict.get('Project')
+            self.watermark = config_dict.get('Watermark')
             self.videos = [video for video in config_dict.get('Videos') if not video.get('skip')]
 
             if self.output_file is None:
@@ -156,7 +162,6 @@ class VideoData:
 
                 # Drop download folder
                 shutil.rmtree(download_path)
-
 
             if os.path.isfile(file_path):
                 if not os.path.isfile(ts_file_path):
@@ -521,14 +526,48 @@ class VideoData:
 
         return self.composite_video_clip([clip, toc_clip, ])
 
+    def fetch_watermark(self):
+        watermark_url = self.watermark.get('url', None)
+        watermark_path = self.watermark.get('path', None)
+
+        if watermark_url:
+            response = requests.get(watermark_url)
+            watermark_image = np.array(Image.open(io.BytesIO(response.content)))
+        elif watermark_path:
+            watermark_image = imageio.imread(os.path.join(self.dir, watermark_path))
+        else:
+            raise ValueError("'url' or 'path' must be provided in 'Watermark' configuration.")
+
+        return watermark_image
+
+    def embed_watermark(self, final_clip):
+        # Adding watermark to the video
+        if self.watermark is not None:
+            watermark_image = self.fetch_watermark()
+            # Get the position and height_ratio values from the configuration.
+            # If they're not present, use default values ("right", "top") and 0.1
+            position = self.watermark.get('position', ("right", "top"))
+            height_ratio = self.watermark.get('height-ratio', 0.1)
+
+            print(f"- Embedding watermark")
+
+            watermark = ImageClip(watermark_image, duration=final_clip.duration)
+            watermark = watermark.resize(height=int(final_clip.size[1] * height_ratio))
+            watermark = watermark.set_position(pos=position).set_duration(final_clip.duration)
+            final_clip = CompositeVideoClip([final_clip, watermark])
+
+        return final_clip
+
     def stitch(self):
         """
         Stitch all the clips into final video
         :return:
         """
+        output_file_path = os.path.join(self.dir, self.output_file)
+
         self.prepare_clips()
         final_clip = self.concatenate_with_chapters()
-        output_file_path = os.path.join(self.dir, self.output_file)
+        final_clip = self.embed_watermark(final_clip)
         final_clip.write_videofile(output_file_path, codec='libx264', audio_codec='aac')
 
     def concatenate_with_chapters(self):

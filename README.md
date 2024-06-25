@@ -12,13 +12,149 @@ brew install ffmpeg
 brew install libmp3splt
 ```
 
+## Config explained
+
+Your `config.yml` contains your config. For now this filename is hardcoded. You must call the script with your working path that contains your file.
+
+### config.yml
+
+```yaml
+Author: Bilbo B
+Sprint: My Sprint Name
+Project: My Project
+Description: A description
+Videos:
+  - type: opening
+    video: intro.mp4
+    show duration: False
+        
+  - video: TICKET-329-demo.mp4
+    ticket: TICKET-329
+
+  - type: closing
+    video: credits.mp4
+```
+
+Required:
+
+Section Videos:
+
+- video (name of the video file)
+
+Optional:
+
+- type (to define "opening" and "closing" videos)
+- youtube-url (Youtube URL and it will use the "video" filename to save the file as)
+- ticket (This is a sticky render at bottom left corner)
+- description (A description to display at bottom of video for five seconds)
+- show duration (Defaults `True` and this will display the timer in bottom right corner)
+- skip (Defaults `True`)
+- background (The background colour, it will replace the video and only keep audio)
+- title (A title to display in the middle of the video)
+- color (The color of the title)
+ 
+### config.yml - opening and closing videos
+
+You need to declare two types "opening" and "closing" as your start/stop videos. There can be multiple, but at least one of each.
+
+```yaml
+Videos:
+  - type: opening
+    video: intro.mp4
+
+  - type: closing
+    video: credits.mp4
+ ```
+
+Required:
+- type ("opening" and "closing")
+- video (file name of vide)
+
+### config.yaml - standard videos
+
+```yaml
+Videos:
+  - ...
+
+  - video: TICKET-107-demo.mp4
+    ticket: TICKET-107
+    description: This is a another cool feature.
+    skip: False
+
+  - video: TICKET-99-demp.mp4
+    ticket: TICKET-99
+    description: This is a another cool feature. 99 Bottles
+    show duration: False
+
+  - video: yt-end.mp4
+    youtube-url: https://www.youtube.com/watch?v=wFZHa5rWddo
+    title: Just something...
+    description: to listen too from Youtube with text
+    ticket: Middle
+    background: [0, 0, 0]
+    color: orange
+
+```
+
+Remember: To skip the video, use `skip: False`. It will not get processed at all.
+
+
+### Config: URLs as video source
+
+You can use URLs as video sources. The script will download the video.
+
+```yaml
+  - video: yt-end.mp4
+    youtube-url: https://www.youtube.com/watch?v=wFZHa5rWddo
+    title: Just something...
+    description: to listen too from Youtube with text
+    ticket: Middle
+    background: [0, 0, 0]
+    color: orange
+```
+
+
+
+
+### Config: Adding A Watermark
+
+```yaml
+Watermark:
+  url: https://sample-videos.com/img/Sample-png-image-100kb.png
+  path: sample.png
+  position: ["right","top"]
+  height-ratio: 0.05
+```
+
+The code will first take `url:` if it exists, else `path:`
+
+The watermark will be rendered through the entire video, first to last frame.
+
+
+### Run it
+
+There are two params
+
+`-dir` - the working directory containing your config file and all your assets. For now, it will look for `config.yml` in the path.
+
+`-preview` - ability to cut your videos to value in seconds. Great for quickly previewing your video.
+
+
+To build the "Silly Video Example" in example path
+```bash
+python stitch.py -dir=example
+```
+
+
+
 
 ### Manual add chapters:
+
+A todo feature is to capture the captures, for now, follow the following readme and make use of the stats dump when building your video to get the chapter positions.
 
 https://ikyle.me/blog/2020/add-mp4-chapters-ffmpeg
 
 When building a video you will get a dump of stats:
-
 
 ```
 Total duration: 43.0
@@ -49,9 +185,15 @@ Example: Chapters.txt
 ```
 
 
-
-
 ### Transport streams
 
 Transport streams are created from each video.
+
+# Known Issues
+
+### Why opencv-python?
+
+We need to install `opencv-python` for the resizing due to a moviepy bug with PIL
+
+Ref: https://github.com/Zulko/moviepy/issues/2002
 

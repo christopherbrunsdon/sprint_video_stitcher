@@ -1,0 +1,29 @@
+Sprint: Play
+Project: Play Project
+Author: Bilbo
+Description: I'm just playing
+Watermark:
+  url: https://sample-videos.com/img/Sample-png-image-100kb.png
+  position: ["right","top"]
+  height-ratio: 0.25
+
+Videos:
+  - type: opening
+    video: yt-laugh.mp4
+    youtube-url: https://www.youtube.com/watch?v=ORmZ1OesTLM
+    title: LOL...
+    background: [0, 0, 0]
+    color: orange
+
+  - video: yt-end.mp4
+    youtube-url: https://www.youtube.com/watch?v=wFZHa5rWddo
+    title: Just something...
+    description: to listen too
+    ticket: Middle
+    background: [0, 0, 0]
+    color: orange
+
+  - type: closing
+    video: yt-thats-all.mp4
+    youtube-url: https://www.youtube.com/watch?v=0FHEeG_uq5Y
+
