@@ -2,6 +2,12 @@
 
 This is WIP and the code will change, it will break and will go boom.
 
+To see sample of video created from the `/example` path:
+
+[[!Demo](https://youtu.be/8_L99gbYABU)] (https://youtu.be/8_L99gbYABU "Video Stitcher Demo")
+
+
+
 ## Requirements
 
 Ref: https://pypi.org/project/moviepy/
@@ -139,11 +145,14 @@ There are two params
 
 `-preview` - ability to cut your videos to value in seconds. Great for quickly previewing your video.
 
+When running, you will see a preview modal popup to preview the text overlays for each video. These start at frame one and close when script is done.
 
-To build the "Silly Video Example" in example path
+To build the example path config
 ```bash
-python stitch.py -dir=example
+python video_stitch.py -dir=example -preview=10
 ```
+
+Credit: Base Rebels for Copyright free music: https://www.youtube.com/@BassRebels
 
 
 
