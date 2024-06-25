@@ -1,7 +1,8 @@
 Sprint: Play
 Project: Play Project
 Author: Bilbo
-Description: I'm just playing
+Description: I'm just playing some Base Rebels
+
 Watermark:
   url: https://sample-videos.com/img/Sample-png-image-100kb.png
   position: ["right","top"]
@@ -9,21 +10,34 @@ Watermark:
 
 Videos:
   - type: opening
-    video: yt-laugh.mp4
-    youtube-url: https://www.youtube.com/watch?v=ORmZ1OesTLM
-    title: LOL...
+    video: intro.mp4
+    youtube-url: https://www.youtube.com/watch?v=VPkWSj0nFtY
+    title: Welcome ...
+    background: [0, 0, 0]
+    color: orange
+    show toc: True
+    duration: 9
+
+  - video: synth.mp4
+    youtube-url: https://www.youtube.com/watch?v=g6zo5rsPC34
+    start: 10
+    duration: 12
+    ticket: BR-SYNTH
+    description: Base Rebels Synth
+    title: I love synth...
     background: [0, 0, 0]
     color: orange
 
-  - video: yt-end.mp4
-    youtube-url: https://www.youtube.com/watch?v=wFZHa5rWddo
-    title: Just something...
-    description: to listen too
-    ticket: Middle
-    background: [0, 0, 0]
-    color: orange
+  - video: ocean.mp4
+    youtube-url: https://www.youtube.com/watch?v=HPl1TfqQLNE
+    duration: 20
+    ticket: BR-OCEAN
+    description: Base Rebels Ocean
 
   - type: closing
-    video: yt-thats-all.mp4
-    youtube-url: https://www.youtube.com/watch?v=0FHEeG_uq5Y
-
+    video: cheers.mp4
+    youtube-url: https://www.youtube.com/watch?v=Oa2h6EsnFMU
+    title: Thank you
+    color: red
+    description: This is awesome
+    duration: 10

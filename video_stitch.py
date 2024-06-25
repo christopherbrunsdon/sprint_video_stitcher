@@ -1,17 +1,15 @@
 import argparse
+import io
 import shutil
 import ssl
 import subprocess
-from urllib.parse import urlparse
 
 import numpy as np
 import requests
 import yaml
-
+from PIL import Image
 from moviepy.editor import *
 from pytube import YouTube
-from PIL import Image
-import io
 
 # Ignore SSL
 # Resolves: urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)>
@@ -193,9 +191,19 @@ class VideoData:
         file_path = self.get_ts_file_path(video)
         clip = VideoFileClip(file_path)
 
-        if self.subclip_duration and self.subclip_duration < clip.duration:
-            print(f"  - Clip Duration: {self.subclip_duration} seconds")
-            clip = clip.subclip(0, self.subclip_duration)
+        start_time = video.get('start', 0)
+        max_duration = video.get('duration')
+        subclip_start, subclip_end = start_time, None
+
+        if max_duration is not None:
+            # Set end time only if max_duration is not None
+            subclip_end = start_time + max_duration
+        elif self.subclip_duration is not None:
+            subclip_end = start_time + self.subclip_duration
+
+        clip = clip.subclip(subclip_start, subclip_end)
+        print(f"  - Start time: {subclip_start} seconds")
+        print(f"  - End time: {subclip_end} seconds")
 
         if self.fadein:
             print(f"  - Fadein: {self.fadein} seconds")
