@@ -4,7 +4,7 @@ This is WIP and the code will change, it will break and will go boom.
 
 To see sample of video created from the `/example` path:
 
-[[!Demo](https://youtu.be/8_L99gbYABU)] (https://youtu.be/8_L99gbYABU "Video Stitcher Demo")
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/8_L99gbYABU/0.jpg)](http://www.youtube.com/watch?v=8_L99gbYABU "Video Stitcher Demo")
 
 
 
