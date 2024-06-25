@@ -1,20 +1,40 @@
+Author: Bilbo B
 Sprint: My Sprint Name
 Project: My Project
+Description: A description
+
+Watermark:
+  url: https://sample-videos.com/img/Sample-png-image-100kb.png
+  position: ["right","top"]
+  height-ratio: 0.05
+
 Videos:
   - video: TICKET-329-demo.mp4
     ticket: TICKET-329
     description: I added a cool feature.
+
   - video: TICKET-107-demp.mp4
     ticket: TICKET-107
     description: This is a another cool feature.
     skip: False
+
   - video: TICKET-107-demo.mp4
     ticket: TICKET-107
     description: Adding that cool feature I just thought off.
     skip: True
+
+  - video: yt-end.mp4
+    youtube-url: https://www.youtube.com/watch?v=wFZHa5rWddo
+    title: Just something...
+    description: to listen too from Youtube with text
+    ticket: Middle
+    background: [0, 0, 0]
+    color: orange
+
   - video: Start.mp4
     type: opening
     show duration: False
+
   - video: End.mp4
     type: closing
     show duration: False
