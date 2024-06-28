@@ -13,7 +13,7 @@ class VideoData:
         self.config_manager = VideoConfigManager(dir)
         self.config_manager.load_and_verify_config(config)
         self.watermark_manager = WatermarkManager(self.config_manager)
-        self.transport_stream_manager = TransportStreamManager(self.config_manager)
+        self.transport_stream_manager = TransportStreamManager(self.config_manager) # used twice
         self.text_overlay_manager = TextOverlayManager(self.config_manager)
         self.table_of_contents_manager = TableOfContentsManager(self.config_manager)
 
@@ -152,7 +152,8 @@ class VideoData:
 
         # Prepare the opening clips
         print(f"Preparing opening clips:")
-        self.clips = [self.prepare_clip_with_toc(video) for video in self.opening_videos]
+        self.clips = [self.table_of_contents_manager.prepare_clip(video, self.prepare_clip(video)) for video in
+                      self.opening_videos]
 
         # Prepare clips for videos where type is not None
         print(f"Preparing middle clips:")
@@ -161,27 +162,6 @@ class VideoData:
         # Prepare the closing clips
         print(f"Preparing closing clips:")
         self.clips.extend([self.prepare_clip(video) for video in self.closing_videos])
-
-    def prepare_clip_with_toc(self, video):
-        clip = self.prepare_clip(video)
-        toc_clip = None
-        if video.get("show toc", False):
-            black_clip_length = self.toc_fade_time - 1
-            clip_length = clip.duration - self.toc_fade_time
-
-            # Shorten the video length by self.toc_fade_time seconds, then append a self.toc_fade_time -1 second
-            # black screen
-            audio = clip.audio  # Strip out audio
-            clip = clip.subclip(0, clip_length)
-            clip = concatenate_videoclips([
-                clip.fx(vfx.fadeout, 1).set_audio(audio),
-                ColorClip((clip.size), col=(0, 0, 0), duration=black_clip_length)  # .set_audio(audio)
-            ])
-            clip = clip.set_audio(audio)  # Restore audio
-
-            toc_clip = self.table_of_contents_manager.clip().set_start(clip_length)
-
-        return self.composite_video_clip([clip, toc_clip, ])
 
     def stitch(self):
         """

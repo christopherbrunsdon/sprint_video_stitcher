@@ -1,11 +1,32 @@
 from moviepy.editor import *
 
+
 class TableOfContentsManager:
     def __init__(self, config_manager):
         self.config_manager = config_manager
         self.videos = self.config_manager.videos
-        self.toc_fade_time =  self.config_manager.toc_fade_time
+        self.toc_fade_time = self.config_manager.toc_fade_time
         self.txt_ticket_fontsize = self.config_manager.txt_ticket_fontsize
+
+    def prepare_clip(self, video, clip):
+        toc_clip = None
+        if video.get("show toc", False):
+            black_clip_length = self.toc_fade_time - 1
+            clip_length = clip.duration - self.toc_fade_time
+
+            # Shorten the video length by self.toc_fade_time seconds, then append a self.toc_fade_time -1 second
+            # black screen
+            audio = clip.audio  # Strip out audio
+            clip = clip.subclip(0, clip_length)
+            clip = concatenate_videoclips([
+                clip.fx(vfx.fadeout, 1).set_audio(audio),
+                ColorClip((clip.size), col=(0, 0, 0), duration=black_clip_length)  # .set_audio(audio)
+            ])
+            clip = clip.set_audio(audio)  # Restore audio
+
+            toc_clip = self.clip().set_start(clip_length)
+
+        return self._composite_video_clip([clip, toc_clip, ])
 
     def clip(self, margin=5):
         """
