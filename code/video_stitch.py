@@ -1,15 +1,12 @@
-import argparse
-import io
 import shutil
 import ssl
-import subprocess
 
-import numpy as np
-import requests
-import yaml
-from PIL import Image
 from moviepy.editor import *
 from pytube import YouTube
+
+from code.transport_stream_manager import TransportStreamManager
+from code.video_config_manager import VideoConfigManager
+from code.watermark_manager import WatermarkManager
 
 # Ignore SSL
 # Resolves: urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)>
@@ -23,23 +20,22 @@ def my_hook(self, d):
 
 class VideoData:
     def __init__(self, dir, config, subclip_duration=None, output_file=None):
-        self.clips = None
-        self.videos = None
-        self.closing_videos = None
-        self.opening_videos = None
-        self.sprint = None
-        self.project = None
-        self.dir = dir
-        self.dir_ts = os.path.join(self.dir, "ts/")
-        self.subclip_duration = subclip_duration
-        self.output_file = output_file
-        self.size = None
-        self.watermark = None
+        self.config_manager = VideoConfigManager(dir)
+        self.config_manager.load_and_verify_config(config)
+        self.watermark_manager = WatermarkManager(self.config_manager)
+        self.transport_stream_manager = TransportStreamManager(self.config_manager)
 
-        self.load_config(config)
-        valid, msg = self.verify_config()
-        if not valid:
-            raise Exception(msg)
+        self.clips = None
+        self.videos = self.config_manager.videos
+        self.closing_videos = self.config_manager.closing_videos
+        self.opening_videos = self.config_manager.opening_videos
+        self.sprint = self.config_manager.sprint
+        self.project = self.config_manager.project
+        self.dir = dir
+
+        self.subclip_duration = subclip_duration
+        self.output_file = self.config_manager.output_file
+        self.size = None
 
         # hard coded for now
         self.fadein = 1
@@ -52,93 +48,17 @@ class VideoData:
         self.get_max_video_size()
         self.stitch()
 
-    def load_config(self, config):
-        """
-        Loading of config
 
-        Example of valid config file:
-            Sprint: My Sprint Name
-            Project: My Project Name
-            Videos:
-              - video: ABC123-my-ticket.mp4
-                description: Adding some feature.
-              - video: Open.mp4
-                type: opening
-              - video: Close.mp4
-                type: closing
 
-        :param config:
-        :return:
-        """
-        with open(os.path.join(self.dir, config), 'r') as ymlfile:
-            config_dict = yaml.safe_load(ymlfile)
-            self.sprint = config_dict.get('Sprint')
-            self.project = config_dict.get('Project')
-            self.watermark = config_dict.get('Watermark')
-            self.videos = [video for video in config_dict.get('Videos') if not video.get('skip')]
-
-            if self.output_file is None:
-                output = f"{config_dict.get('Author', '')}-sprint-demo-{config_dict.get('Sprint', 'stitched output')}"
-                output = output.strip().strip('-').lower()  # Get the value, trim and lower case
-                output = output.replace(' ', '-')  # Replace whitespaces with dash
-                self.output_file = output + '.mp4'  # Append '.mp4'
-
-        self.opening_videos = [video for video in self.videos if video.get('type') == 'opening']
-        self.closing_videos = [video for video in self.videos if video.get('type') == 'closing']
-
-    def verify_config(self):
-        """
-        Verify the config file is valid.
-
-        Required:
-        - Sprint: string
-        - Project: string
-        - Videos: list of strings
-
-        Rules:
-        1 - One video tagged with type opening
-        2 - One video tagged with type closing
-
-        Example of valid config file:
-            Sprint: My Sprint Name
-            Project: My Project Name
-            Videos:
-              - video: ABC123-my-ticket.mp4
-                description: Adding some feature.
-              - video: Open.mp4
-                type: opening
-              - video: Close.mp4
-                type: closing
-
-        :return:
-        """
-        if not isinstance(self.sprint, str):
-            return False, "Sprint is not a string"
-        if not isinstance(self.project, str):
-            return False, "Project is not a string"
-        if not isinstance(self.videos, list):
-            return False, "Videos are not a list"
-
-        if len(self.opening_videos) != 1 or len(self.closing_videos) != 1:
-            return False, "There should be one video tagged with type 'opening' and one with type 'closing'"
-
-        return True, "Config file is valid"
-
-    def convert_to_ts(self, input_file, output_file):
-        command = f"ffmpeg -i '{input_file}' -c copy -bsf:v h264_mp4toannexb -f mpegts '{output_file}'"
-        subprocess.run(command, shell=True, check=True)
 
     def prepare(self):
         """
         :return:
         """
-        # Create subdirectory "ts" if not exists and then check .ts files.
-        if not os.path.exists(self.dir_ts):
-            os.makedirs(self.dir_ts)
 
         for video in self.videos:
             file_path = self.get_file_path(video)
-            ts_file_path = self.get_ts_file_path(video)
+            ts_file_path = self.transport_stream_manager.get_file_path(video)
 
             # Check if the video is a YouTube URL and we have not downloaded it yet
             youtube_url = video.get('youtube-url')
@@ -163,7 +83,7 @@ class VideoData:
 
             if os.path.isfile(file_path):
                 if not os.path.isfile(ts_file_path):
-                    self.convert_to_ts(file_path, ts_file_path)
+                    self.transport_stream_manager.convert(file_path, ts_file_path)
             else:
                 print(f"{file_path} does not exists")
 
@@ -188,7 +108,7 @@ class VideoData:
         self.size = (max_width, max_height)
 
     def video_clip(self, video):
-        file_path = self.get_ts_file_path(video)
+        file_path =  self.transport_stream_manager.get_file_path(video)
         clip = VideoFileClip(file_path)
 
         start_time = video.get('start', 0)
@@ -534,37 +454,7 @@ class VideoData:
 
         return self.composite_video_clip([clip, toc_clip, ])
 
-    def fetch_watermark(self):
-        watermark_url = self.watermark.get('url', None)
-        watermark_path = self.watermark.get('path', None)
 
-        if watermark_url:
-            response = requests.get(watermark_url)
-            watermark_image = np.array(Image.open(io.BytesIO(response.content)))
-        elif watermark_path:
-            watermark_image = imageio.imread(os.path.join(self.dir, watermark_path))
-        else:
-            raise ValueError("'url' or 'path' must be provided in 'Watermark' configuration.")
-
-        return watermark_image
-
-    def embed_watermark(self, final_clip):
-        # Adding watermark to the video
-        if self.watermark is not None:
-            watermark_image = self.fetch_watermark()
-            # Get the position and height_ratio values from the configuration.
-            # If they're not present, use default values ("right", "top") and 0.1
-            position = self.watermark.get('position', ("right", "top"))
-            height_ratio = self.watermark.get('height-ratio', 0.1)
-
-            print(f"- Embedding watermark")
-
-            watermark = ImageClip(watermark_image, duration=final_clip.duration)
-            watermark = watermark.resize(height=int(final_clip.size[1] * height_ratio))
-            watermark = watermark.set_position(pos=position).set_duration(final_clip.duration)
-            final_clip = CompositeVideoClip([final_clip, watermark])
-
-        return final_clip
 
     def stitch(self):
         """
@@ -575,7 +465,7 @@ class VideoData:
 
         self.prepare_clips()
         final_clip = self.concatenate_with_chapters()
-        final_clip = self.embed_watermark(final_clip)
+        final_clip = self.watermark_manager.embed(final_clip)
         final_clip.write_videofile(output_file_path, codec='libx264', audio_codec='aac')
 
     def concatenate_with_chapters(self):
@@ -607,26 +497,4 @@ class VideoData:
     def get_file_path(self, video):
         return os.path.join(self.dir, video['video'])
 
-    def get_ts_file_path(self, video):
-        file_path = self.get_file_path(video)
-        filename_without_ext = os.path.splitext(os.path.basename(file_path))[0]
-        ts_file_path = os.path.join(self.dir_ts, filename_without_ext + '.ts')
-        return ts_file_path
 
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Stitch sprint videos")
-
-    parser.add_argument('-dir', metavar='dir', type=str, help='the working directory for your videos')
-    parser.add_argument('-preview', metavar='preview', type=int, nargs='?',
-                        help='Create preview clip in seconds of each video before stitching')
-    parser.add_argument('-config', metavar='config', type=str, default="config.yml",
-                        help='the yaml data config file for your videos in your working directory')
-    args = parser.parse_args()
-    print(f"Stitching Sprint Video from directory: {args.dir}")
-
-    if args.preview:
-        print(f"PREVIEW MODE: All clips to be cut to {args.preview} seconds")
-
-    videos = VideoData(dir=args.dir, config=args.config, subclip_duration=args.preview)
-    videos.run()
