@@ -7,7 +7,8 @@ class TransportStreamManager:
 
     def __init__(self, config_manager):
         self.config_manager = config_manager
-        self.dir_ts = os.path.join(self.config_manager.dir, "ts/")
+        self.dir = self.config_manager.dir
+        self.dir_ts = os.path.join(self.dir, "ts/")
         self.setup_path()
 
     def setup_path(self):
@@ -15,9 +16,11 @@ class TransportStreamManager:
         if not os.path.exists(self.dir_ts):
             os.makedirs(self.dir_ts)
 
-    def convert(self, input_file, output_file):
-        command = f"ffmpeg -i '{input_file}' -c copy -bsf:v h264_mp4toannexb -f mpegts '{output_file}'"
-        subprocess.run(command, shell=True, check=True)
+    def convert(self, input_filepath, video):
+        ts_file_path = self.get_file_path(video)
+        if not os.path.isfile(ts_file_path):
+            command = f"ffmpeg -i '{input_filepath}' -c copy -bsf:v h264_mp4toannexb -f mpegts '{ts_file_path}'"
+            subprocess.run(command, shell=True, check=True)
 
     def get_file_path(self, video):
         file_path = self._get_file_path(video)
@@ -26,4 +29,4 @@ class TransportStreamManager:
         return ts_file_path
 
     def _get_file_path(self, video):
-        return os.path.join(self.config_manager.dir, video['video'])
+        return os.path.join(self.dir, video['video'])
