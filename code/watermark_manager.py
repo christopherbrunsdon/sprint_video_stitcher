@@ -16,6 +16,9 @@ class WatermarkManager:
         self._load()
 
     def _load(self):
+        if not self.config_manager.watermark:
+            return
+
         watermark_url = self.config_manager.watermark.get('url', None)
         watermark_path = self.config_manager.watermark.get('path', None)
 
