@@ -5,7 +5,7 @@ from code.video_stitch import VideoData
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Stitch sprint videos")
 
-    parser.add_argument('-dir', metavar='dir', type=str, help='the working directory for your videos')
+    parser.add_argument('-dir', required=True, metavar='dir', type=str, help='the working directory for your videos')
     parser.add_argument('-preview', metavar='preview', type=int, nargs='?',
                         help='Create preview clip in seconds of each video before stitching')
     parser.add_argument('-config', metavar='config', type=str, default="config.yml",

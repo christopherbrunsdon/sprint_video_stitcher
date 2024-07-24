@@ -6,7 +6,7 @@ from code.transport_stream_manager import TransportStreamManager
 from code.video_config_manager import VideoConfigManager
 from code.watermark_manager import WatermarkManager
 from code.youtube_manager import youtube_download
-
+from code.stage_video_manager import StageVideoManager
 
 class VideoData:
     def __init__(self, dir, config, subclip_duration=None, output_file=None):
@@ -16,6 +16,7 @@ class VideoData:
         self.transport_stream_manager = TransportStreamManager(self.config_manager) # used twice
         self.text_overlay_manager = TextOverlayManager(self.config_manager)
         self.table_of_contents_manager = TableOfContentsManager(self.config_manager)
+        self.stage_video_manager = StageVideoManager(self.config_manager)
 
         self.clips = None
         self.videos = self.config_manager.videos
@@ -50,7 +51,8 @@ class VideoData:
             youtube_download(video.get('youtube-url'), file_path)
 
             if os.path.isfile(file_path):
-                self.transport_stream_manager.convert(file_path, video)
+                stage_file_path = self.stage_video_manager.convert(file_path, video)
+                self.transport_stream_manager.convert(stage_file_path, video)
             else:
                 print(f"{file_path} does not exists")
 
@@ -173,6 +175,10 @@ class VideoData:
         self.prepare_clips()
         final_clip = self.concatenate_with_chapters()
         final_clip = self.watermark_manager.embed(final_clip)
+
+        # This would be 'libx264' or 'mpeg4' for mp4, 'libtheora' for ogv, 'libvpx for webm.
+        # Another possible reason is that the audio codec was not compatible with the video codec.
+        # For instance the video extensions 'ogv' and 'webm' only allow 'libvorbis' (default) as avideo codec.
         final_clip.write_videofile(output_file_path, codec='libx264', audio_codec='aac')
 
     def concatenate_with_chapters(self):
