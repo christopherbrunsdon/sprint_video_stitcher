@@ -23,8 +23,9 @@ class TextOverlayManager:
         # Process and return
         clips = [ticket_clip, txt_clip, duration_clip, timelapse_clip, ]
         result = self._composite_video_clip(clips)
-        if result:
-            result.show()
+        # This will show a preview to the user while rendering, comment out to use:
+        # if result:
+        #     result.show()
         return result
 
     def _render_duration_clip(self, clip_duration, description_duration, margin, video):

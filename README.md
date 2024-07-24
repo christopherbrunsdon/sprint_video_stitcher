@@ -206,3 +206,9 @@ We need to install `opencv-python` for the resizing due to a moviepy bug with PI
 
 Ref: https://github.com/Zulko/moviepy/issues/2002
 
+
+## Zoom clips have frame issues
+
+Prepare each clip with `ffmpeg -i input.mp4 -c:v libx264 -c:a aac output.mp4`
+
+@todo: make this a step in the process before converting to ts
