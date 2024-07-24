@@ -209,6 +209,10 @@ Ref: https://github.com/Zulko/moviepy/issues/2002
 
 ## Zoom clips have frame issues
 
-Prepare each clip with `ffmpeg -i input.mp4 -c:v libx264 -c:a aac output.mp4`
+This is now done on prep and stored in project/stage
 
-@todo: make this a step in the process before converting to ts
+To manually do this: 
+
+```bash
+ffmpeg -i input.mp4 -c:v libx264 -c:a aac output.mp4
+`
