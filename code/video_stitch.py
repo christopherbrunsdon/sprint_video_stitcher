@@ -1,19 +1,25 @@
 from moviepy.editor import *
 
+import hashlib
+import json
+
+from moviepy.editor import *
+
+from code.stage_video_manager import StageVideoManager
 from code.table_of_contents_manager import TableOfContentsManager
 from code.text_overlay_manager import TextOverlayManager
 from code.transport_stream_manager import TransportStreamManager
 from code.video_config_manager import VideoConfigManager
 from code.watermark_manager import WatermarkManager
 from code.youtube_manager import youtube_download
-from code.stage_video_manager import StageVideoManager
+
 
 class VideoData:
     def __init__(self, dir, config, subclip_duration=None, output_file=None):
         self.config_manager = VideoConfigManager(dir)
         self.config_manager.load_and_verify_config(config)
         self.watermark_manager = WatermarkManager(self.config_manager)
-        self.transport_stream_manager = TransportStreamManager(self.config_manager) # used twice
+        self.transport_stream_manager = TransportStreamManager(self.config_manager)  # used twice
         self.text_overlay_manager = TextOverlayManager(self.config_manager)
         self.table_of_contents_manager = TableOfContentsManager(self.config_manager)
         self.stage_video_manager = StageVideoManager(self.config_manager)
@@ -143,11 +149,29 @@ class VideoData:
     def prepare_clip(self, video):
         print(f"- Prepared '{video.get('type', 'demo')}' clip for '{video['video']}'")
 
-        clip = self.video_clip(video)
-        txt_clip = self.text_overlay_manager.video_text_overlay_clip(video, clip_duration=clip.duration)
+        # Create path if not exist
+        dir_cache = os.path.join(self.config_manager.dir, "cache/")
+        if not os.path.exists(dir_cache):
+            os.makedirs(dir_cache)
 
-        clips = [clip, txt_clip, ]
-        return self.composite_video_clip(clips)
+        # hash of video data
+        video_str = json.dumps(video, sort_keys=True)
+        hash = hashlib.md5(video_str.encode('utf-8')).hexdigest()
+        hash_file_path = os.path.join(dir_cache, hash + ".mp4")
+        if not os.path.isfile(hash_file_path):
+            print(f"  - Clip '{video['video']}' being built")
+            clip = self.video_clip(video)
+            txt_clip = self.text_overlay_manager.video_text_overlay_clip(video, clip_duration=clip.duration)
+            clips = [clip, txt_clip, ]
+            comp = self.composite_video_clip(clips)
+            # Save comp to disk
+            self.write_videofile(comp, hash_file_path)
+        else:
+            print(f"  - Clip '{video['video']}' already exists")
+            #  Read from disk
+            comp = VideoFileClip(hash_file_path)
+
+        return comp
 
     def prepare_clips(self):
         print(f"Preparing clips for {self.project}")
@@ -175,11 +199,7 @@ class VideoData:
         self.prepare_clips()
         final_clip = self.concatenate_with_chapters()
         final_clip = self.watermark_manager.embed(final_clip)
-
-        # This would be 'libx264' or 'mpeg4' for mp4, 'libtheora' for ogv, 'libvpx for webm.
-        # Another possible reason is that the audio codec was not compatible with the video codec.
-        # For instance the video extensions 'ogv' and 'webm' only allow 'libvorbis' (default) as avideo codec.
-        final_clip.write_videofile(output_file_path, codec='libx264', audio_codec='aac')
+        self.write_videofile(final_clip, output_file_path)
 
     def concatenate_with_chapters(self):
         start_times = []  # To track start times for each clip
@@ -209,3 +229,11 @@ class VideoData:
 
     def get_file_path(self, video):
         return os.path.join(self.dir, video['video'])
+
+
+    def write_videofile(self, clip, output_file_path):
+        # This would be 'libx264' or 'mpeg4' for mp4, 'libtheora' for ogv, 'libvpx for webm.
+        # Another possible reason is that the audio codec was not compatible with the video codec.
+        # For instance the video extensions 'ogv' and 'webm' only allow 'libvorbis' (default) as avideo codec.
+
+        clip.write_videofile(output_file_path, codec='libx264', audio_codec='aac')
